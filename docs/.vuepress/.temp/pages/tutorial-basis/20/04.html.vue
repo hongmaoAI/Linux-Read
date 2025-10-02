@@ -1,0 +1,64 @@
+<template><div><h1 id="备份的种类、频率、与工具的选择" tabindex="-1"><a class="header-anchor" href="#备份的种类、频率、与工具的选择"><span>备份的种类、频率、与工具的选择</span></a></h1>
+<p>备份的种类粗了分为：累积备份、差异备份。如果仅想在系统出错时重新安装到更新的系统时，仅备份关键数据也可以</p>
+<h2 id="完整备份之累积备份-incremental-backup" tabindex="-1"><a class="header-anchor" href="#完整备份之累积备份-incremental-backup"><span>完整备份之累积备份（Incremental backup）</span></a></h2>
+<p>笔者个人觉得，关于要如何备份，要看你的需求，这里讲解每种备份的一些思路与思考</p>
+<h3 id="还原考虑" tabindex="-1"><a class="header-anchor" href="#还原考虑"><span>还原考虑</span></a></h3>
+<p>如果是完整备份的话，可以直接备份 <code v-pre>/</code> 根目录下的所有文件，还原时也是全部还原，这个是很快速方便的，还可以备份一个文件系统，例如 <code v-pre>/dev/sda1</code></p>
+<h3 id="累积备份的原则-增量备份" tabindex="-1"><a class="header-anchor" href="#累积备份的原则-增量备份"><span>累积备份的原则（增量备份）</span></a></h3>
+<p>累积备份：系统先进行一次完整数据备份之后，下次再备份仅备份有变化的数据。</p>
+<p>这样备份规则数据量小且快速，备份很有效率</p>
+<p>如何还原？由于是增量备份，当还原的时候需要从第一次备份开始以此还原</p>
+<h3 id="累积备份使用的备份软件" tabindex="-1"><a class="header-anchor" href="#累积备份使用的备份软件"><span>累积备份使用的备份软件</span></a></h3>
+<p>完整备份常用的工具有 dd、cpio、xfsdump、xfsrestor 等。因为这些工具都能备份设备与特殊文件</p>
+<ul>
+<li>dd 可以直接读取磁盘扇区而不管文件系统，缺点就是有点慢</li>
+<li>cpio 能备份所有的文件，但是需要 find 或其他找文件名的指令才能处理</li>
+</ul>
+<p>以上两个都可以完整备份，但累计备份就要额外的使用脚本程序来处理。</p>
+<p>xfsdump 可以直接完成累积备份，这部分知识在第 8 章有讲解</p>
+<div class="language-bash line-numbers-mode" data-highlighter="prismjs" data-ext="sh"><pre v-pre><code class="language-bash"><span class="line"><span class="token comment"># 1. 用 dd 将 /dev/sda 备份到完全一模一样的 /dev/sdb 硬盘上</span></span>
+<span class="line"><span class="token function">dd</span> <span class="token assign-left variable">if</span><span class="token operator">=</span>/dev/sda <span class="token assign-left variable">of</span><span class="token operator">=</span>/dev/sdb</span>
+<span class="line"><span class="token comment"># 由于是直接读取扇区，所以  /dev/sdb 磁盘可以不用格式化</span></span>
+<span class="line"></span>
+<span class="line"><span class="token comment"># 2. 使用 cpio 来备份还原整个系统，假设存储媒体为 SATA 磁带机</span></span>
+<span class="line"><span class="token function">find</span> / <span class="token parameter variable">-print</span> <span class="token operator">|</span> cpio <span class="token parameter variable">-covB</span> <span class="token operator">></span> /dev/st0  <span class="token comment"># 备份到磁带机</span></span>
+<span class="line">cpio <span class="token parameter variable">-iduv</span> <span class="token operator">&lt;</span> /dev/st0		<span class="token comment"># 还原</span></span>
+<span class="line"></span></code></pre>
+<div class="line-numbers" aria-hidden="true" style="counter-reset:line-number 0"><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div></div></div><p>假设 <code v-pre>/home</code> 是一个独立的文件系统，而 <code v-pre>/backupdata</code> 也是一个独立的用来备份的文件系统，如何使用 dump 将 <code v-pre>/home</code> 完整备份到 /backupdata 呢?</p>
+<div class="language-bash line-numbers-mode" data-highlighter="prismjs" data-ext="sh"><pre v-pre><code class="language-bash"><span class="line"><span class="token comment"># 1. 完整备份</span></span>
+<span class="line">xfsdump <span class="token parameter variable">-l</span> <span class="token number">0</span> <span class="token parameter variable">-L</span> <span class="token string">'full'</span> <span class="token parameter variable">-M</span> <span class="token parameter variable">-f</span> /backupdata/home.dump /home</span>
+<span class="line"></span>
+<span class="line"><span class="token comment"># 2. 第一次进行累积备份</span></span>
+<span class="line">xfsdump <span class="token parameter variable">-l</span> <span class="token number">1</span> <span class="token parameter variable">-L</span> ‘full-1’ <span class="token parameter variable">-N</span> <span class="token parameter variable">-f</span> /backupdata/home.dump1 /home</span>
+<span class="line"></span></code></pre>
+<div class="line-numbers" aria-hidden="true" style="counter-reset:line-number 0"><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div></div></div><p>ta 也可以用来进行完整备份。比如  <code v-pre>backupdata</code> 是个独立的文件系统，想将整个系统备份起来时，可以这样考虑：将不需要备份的 <code v-pre>/proc</code>、<code v-pre>/mnt</code>、<code v-pre>/tmp</code> 等目录不备份，其他的数据则备份</p>
+<div class="language-bash line-numbers-mode" data-highlighter="prismjs" data-ext="sh"><pre v-pre><code class="language-bash"><span class="line"><span class="token function">tar</span> <span class="token parameter variable">-exclude</span> /proc <span class="token parameter variable">--exclude</span> /mnt <span class="token parameter variable">--exclude</span> /tmp <span class="token parameter variable">--exclude</span> /backupdata <span class="token parameter variable">-jcvp</span> /backupdata/system.tar.bz2</span>
+<span class="line"></span></code></pre>
+<div class="line-numbers" aria-hidden="true" style="counter-reset:line-number 0"><div class="line-number"></div></div></div><h2 id="完整备份之差异备份-differential-backup" tabindex="-1"><a class="header-anchor" href="#完整备份之差异备份-differential-backup"><span>完整备份之差异备份（Differential backup）</span></a></h2>
+<p>差异备份：与累积备份类似，第一次需要完整备份，后面的每次备份都是以第一次作为基准的差异备份。所以系统运行越久，离完整备份时间越长，那么该次的差异备份数据可能就会越大</p>
+<p>差异备份与累积备份的常用工具类似，因为都需要完整备份，如果使用 xfsdump 来备份的话，那么每次备份的等级（level） 就都是 level 1 。</p>
+<p>当使用 tar 的时候，可以使用 -N 选项来备份</p>
+<div class="language-bash line-numbers-mode" data-highlighter="prismjs" data-ext="sh"><pre v-pre><code class="language-bash"><span class="line"><span class="token function">tar</span> <span class="token parameter variable">-N</span> ‘2020-04-04’ <span class="token parameter variable">-jpcv</span> <span class="token parameter variable">-f</span> /backupdata/home.tar.bz2 /home</span>
+<span class="line"><span class="token comment"># 只有在比 2020-04-04 还要新的文件时，在 /home 下的文件才会被打包进 home.tar.bz2 中</span></span>
+<span class="line"><span class="token comment"># 有一点不好就是，目录会被备份进来，只是目录内的旧文件不会备份</span></span>
+<span class="line"></span></code></pre>
+<div class="line-numbers" aria-hidden="true" style="counter-reset:line-number 0"><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div></div></div><p>另外还可以通过 rsync 来进行镜像备份。rsync 可以对两个目录进行镜像（mirror），算是一个非常快速的备份工具，简单指令语法 <code v-pre>rsync -av 来源目录 目标目录</code></p>
+<div class="language-bash line-numbers-mode" data-highlighter="prismjs" data-ext="sh"><pre v-pre><code class="language-bash"><span class="line"><span class="token comment"># 1. 将 /home/ 镜像到 /backupdata/home/ </span></span>
+<span class="line"><span class="token function">rsync</span> <span class="token parameter variable">-av</span> /home /backupdata/</span>
+<span class="line"><span class="token comment"># 此时会在 /backupdata 下产生 home 目录</span></span>
+<span class="line"><span class="token function">rsync</span> <span class="token parameter variable">-av</span> /home /backupdata/</span>
+<span class="line"><span class="token comment"># 再次执行就会快很多，如果数据没有改变，几乎不会进行任何动作</span></span>
+<span class="line"></span>
+<span class="line"></span></code></pre>
+<div class="line-numbers" aria-hidden="true" style="counter-reset:line-number 0"><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div></div></div><p>差异备份所使用的磁盘容量可能会比累积备份更大，但是差异备份还原较快</p>
+<h2 id="关键数据备份" tabindex="-1"><a class="header-anchor" href="#关键数据备份"><span>关键数据备份</span></a></h2>
+<p>完整备份虽然有很多好处，但是需要花费很多时间，在某些场景下只需要备份重要文件即可，比如你的主机不是一定要 24 小时提供的服务，就算宕机两三天，可能也不会影响到你的正常生活时。</p>
+<p>关机数据备份也有一些好处：比如完整备份是在系统运行期间，如果系统本身就有问题了，就算还原回去，还是有问题的</p>
+<p>对于关机数据的备份，对于还原稍微难一点，你需要很熟悉系统的运作，尤其是 SELinux 等安全行管的权限等问题时。</p>
+<p>作者在备份关键数据时喜欢使用 tar + date 来配合</p>
+<div class="language-bash line-numbers-mode" data-highlighter="prismjs" data-ext="sh"><pre v-pre><code class="language-bash"><span class="line"><span class="token function">tar</span> <span class="token parameter variable">-jpcvf</span> mysql.<span class="token variable"><span class="token variable">`</span><span class="token function">date</span> +%y-%m-%d<span class="token variable">`</span></span>.tar.bz2 /var/mysql</span>
+<span class="line"></span></code></pre>
+<div class="line-numbers" aria-hidden="true" style="counter-reset:line-number 0"><div class="line-number"></div></div></div><p>备份是非常重要的工作，你可以编写脚本配合 crontab 去执行</p>
+</div></template>
+
+

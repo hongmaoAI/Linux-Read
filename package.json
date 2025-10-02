@@ -8,20 +8,19 @@
     "docs:dev": "vuepress dev docs --open",
     "docs:devx": "node --max_old_space_size=4096 ./node_modules/vuepress/cli.js dev docs --open",
     "docs:build": "vuepress build docs",
-    "docs:buildx": "node --max_old_space_size=4096 ./node_modules/vuepress/cli.js build docs"
+    "docs:buildx": "node --max_old_space_size=4096 ./node_modules/vuepress/cli.js build docs",
+    "docs:dev-fast": "vuepress dev docs --clean-cache --clean-temp",
+    "dev": "vuepress dev docs --clean-cache --clean-temp"
   },
   "dependencies": {
-    "@vssue/api-github-v3": "^1.4.0",
-    "@vssue/vuepress-plugin-vssue": "^1.4.2",
-    "moment": "^2.24.0",
-    "vuepress-plugin-baidu-tongji-analytics": "^1.0.1",
-    "vuepress-plugin-code-copy": "^1.0.4"
+    "moment": "^2.24.0"
   },
   "devDependencies": {
-    "@vuepress/plugin-back-to-top": "^1.4.1",
-    "@vuepress/plugin-medium-zoom": "^1.4.1",
-    "@vuepress/plugin-pwa": "^1.4.1",
-    "vuepress": "^1.4.1",
-    "vuepress-plugin-baidu-autopush": "^1.0.1"
+    "vuepress": "^2.0.0-rc.24",
+    "@vuepress/theme-default": "^2.0.0-rc.24",
+    "@vuepress/plugin-back-to-top": "^2.0.0-rc.24",
+    "@vuepress/plugin-medium-zoom": "^2.0.0-rc.24",
+    "@vuepress/plugin-search": "^2.0.0-rc.24",
+    "@vuepress/bundler-vite": "^2.0.0-rc.24"
   }
 }

@@ -1,0 +1,302 @@
+<template><div><h1 id="用户的特殊-shell-与-pam-模块" tabindex="-1"><a class="header-anchor" href="#用户的特殊-shell-与-pam-模块"><span>用户的特殊 shell 与 PAM 模块</span></a></h1>
+<p>前面讲解的大多是一般身份用户与系统管理员 root 的相关操作，而且大多是关于可登陆系统的账户来说的。</p>
+<p>那么想要建立一个 <strong>仅仅能使用 mail server 相关邮件服务的账户，而该账户并不能登陆 Linux 主机</strong>，如果分配密码则</p>
+<p>另外 前面说<code v-pre>/etc/login.defs</code>文件中，关于密码长度默认是 5 个字符串长度，但是该值以及被 PAM 模块所取代了，那么 PAM 是什么？为什么他可以影响我们使用者的登录呢？</p>
+<h2 id="特殊的-shell-sbin-nologin" tabindex="-1"><a class="header-anchor" href="#特殊的-shell-sbin-nologin"><span>特殊的 shell：<code v-pre>/sbin/nologin</code></span></a></h2>
+<p>在 passwd 文件结构里面有看到过这个 shell 的配置，如果配置了这个 shell 给一个账户，那么该账户试图登录的时候，就会提示如下的信息</p>
+<div class="language-bash line-numbers-mode" data-highlighter="prismjs" data-ext="sh"><pre v-pre><code class="language-bash"><span class="line">This account is currently not available</span>
+<span class="line"></span></code></pre>
+<div class="line-numbers" aria-hidden="true" style="counter-reset:line-number 0"><div class="line-number"></div></div></div><p>这里说的无法登录仅表示：这个使用者无法使用 bash 或其他 shell 来登录系统，并不是说无法使用其他系统资源</p>
+<p>那么上面的提示内容，仅仅提示该账户目前不可用，其实可以通过 <code v-pre>/etc/nologin.txt</code> 文件来自定义提示内容</p>
+<div class="language-bash line-numbers-mode" data-highlighter="prismjs" data-ext="sh"><pre v-pre><code class="language-bash"><span class="line"><span class="token comment"># 利用纯 mail 账户，例如 myuser3 时，显示自定义内容给登陆者查看</span></span>
+<span class="line"></span>
+<span class="line"><span class="token punctuation">[</span>root@study ~<span class="token punctuation">]</span><span class="token comment"># vim /etc/nologin.txt</span></span>
+<span class="line"> 该账户只用来接收邮件，不提供登录服务。</span>
+<span class="line"></span>
+<span class="line"><span class="token comment"># 之前创建 myuser3 的时候 shell 就设置的是 /sbin/nologin</span></span>
+<span class="line"><span class="token punctuation">[</span>pro2@study ~<span class="token punctuation">]</span>$ <span class="token function">su</span> <span class="token parameter variable">-l</span> myuser3</span>
+<span class="line">Password: </span>
+<span class="line">该账户只用来接收邮件，不提供登录服务。</span>
+<span class="line"></span>
+<span class="line"><span class="token comment"># 可以看到提示信息就被自定义了</span></span>
+<span class="line"></span></code></pre>
+<div class="line-numbers" aria-hidden="true" style="counter-reset:line-number 0"><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div></div></div><h2 id="pam-模块简介" tabindex="-1"><a class="header-anchor" href="#pam-模块简介"><span>PAM 模块简介</span></a></h2>
+<p>PAM（Pluggable Authentication Modules 嵌入式模块）可以说是一套应用程序编程接口，提供了许多验证机制，只要使用者将验证阶段的需求告知 PAM 后，PAM 就能返回验证结果成功或失败。</p>
+<p>没有用 PAM 之前，需要自己写程序处理账户密码的验证，那么就有人收集了很多验证需求实现后提供了一个验证模块。因此程序都可以引用该模块来进行验证</p>
+<p><img src="@source/tutorial-basis/13/assets/image-20200225155547026.png" alt="image-20200225155547026"></p>
+<p>如图示，PAM 是一个独立的 API，你的程序也可以引入他来进行验证</p>
+<p>PAM 用来进行验证的数据成为模块（Modules），每个 PAM 模块功能都不太相同，比如，之前 passwd 指令输入密码，报错提示在字典上面找到的字符串，这是 PAM 的 pam_cracklib.so 模块的功能</p>
+<h2 id="pam-模块设置语法" tabindex="-1"><a class="header-anchor" href="#pam-模块设置语法"><span>PAM 模块设置语法</span></a></h2>
+<p>这里以  passwd 指令调用的 PAM 来说明：</p>
+<ol>
+<li>用户开始执行 <code v-pre>/usr/bin/passwd</code> 程序，并输入密码</li>
+<li>passwd 调用 PAM 模块进行验证</li>
+<li>PAM 模块会到 <code v-pre>/etc/pam.d/</code> 寻找与指令 passwd 同名的配置文件</li>
+<li>根据 <code v-pre>/etc/pam.d/passwd</code> 内的设置，引用相关的 PAM 模块逐步进行验证分析；</li>
+</ol>
+<p>那么从这里就看出来了，他的入口配置是：</p>
+<ol>
+<li>配置文件要放到 <code v-pre>/etc/pam.d/</code> 中，且同名</li>
+<li>程序要调用</li>
+</ol>
+<p>下面先来看看配置文件的内容。</p>
+<div class="language-bash line-numbers-mode" data-highlighter="prismjs" data-ext="sh"><pre v-pre><code class="language-bash"><span class="line"><span class="token punctuation">[</span>pro2@study ~<span class="token punctuation">]</span>$ <span class="token function">cat</span> /etc/pam.d/passwd </span>
+<span class="line"><span class="token comment">#%PAM-1.0		# PAM 版本说明</span></span>
+<span class="line">auth       include	system-auth			<span class="token comment"># 每一行是一个验证程序</span></span>
+<span class="line">account    include	system-auth</span>
+<span class="line">password   substack	system-auth</span>
+<span class="line"><span class="token parameter variable">-password</span>   optional	pam_gnome_keyring.so use_authtok</span>
+<span class="line">password   substack	postlogin</span>
+<span class="line">验证类别	控制标准	PAM 模块与该模块的参数</span>
+<span class="line"></span></code></pre>
+<div class="line-numbers" aria-hidden="true" style="counter-reset:line-number 0"><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div></div></div><p>该文件中，除了第一行声明  PAM 版本外，其他的 <code v-pre>#</code> 开头的均为批注内容</p>
+<p>上面第 2 字段中出现的 include 是标识，调用后面的文件来作为这个类别的验证，所以是调用 <code v-pre>/etc/pam.d/system-auth</code> 文件来进行验证</p>
+<ol>
+<li>
+<p>验证类别（type）：主要分为 4 种</p>
+<ul>
+<li>
+<p>auth：authentication 认证</p>
+<p>主要用来校验使用者的身份验证，这种类别通常是需要密码来校验的，所以后续接的模块是用来校验用户的身份</p>
+</li>
+<li>
+<p>account：account 账户</p>
+<p>大部分是在进行 authorization 授权，这种类别主要检验使用者是否具有正确的权限，比如：使用一个过期的密码来登录，就无法登录了</p>
+</li>
+<li>
+<p>session</p>
+<p>该使用者在此次登录（或使用这个指令）期间，PAM 所给予的环境设置。这个类别通常用在记录用户登录与注销时的信息。</p>
+<p>例如：假如你常常使用 su 或 sudo 指令，那么应该可以在 <code v-pre>/var/log/secure</code> 里面发现很多关于 pam 的说明，而且记载的数据是<code v-pre>session open、session close</code> 的信息</p>
+</li>
+<li>
+<p>password 密码</p>
+<p>主要提供验证的修改工作，比如修改密码</p>
+</li>
+</ul>
+<p>这 4 个验证类型通常是有顺序的（也有例外），有顺序是因为：</p>
+<ol>
+<li>总是要先验证身份（auth）后</li>
+<li>系统才能够获取到用户身份给予适当的授权与权限设置（account）</li>
+<li>登录与注销期间的环境才需要设置，需要记录登录与注销信息 （session）</li>
+<li>修改密码时，使用 password 类别</li>
+</ol>
+<p>根据业务来看，貌似是有必要有顺序的</p>
+</li>
+<li>
+<p>验证的控制旗标（control flag）</p>
+<p>简单说：是验证通过的标准，主要有 4 种控制方式</p>
+<ul>
+<li>
+<p>required</p>
+<p>验证成功则带有 success 标志，失败则 failure 标志，但是都会继续后续的验证流程</p>
+</li>
+<li>
+<p>requisite</p>
+<p>若验证失败立刻返回 failure 标志，并终止后续的验证流程。若验证成功则带有 success 标志，并继续后续的验证流程。</p>
+<p>由于失败就终止，因此失败时所产生的 PAM 信息无法通过后续的模块来记录了</p>
+</li>
+<li>
+<p>sufficient</p>
+<p>若验证成功立刻回传 success 给原程序，并终止后续验证流程；</p>
+<p>若验证失败则带有 failure 标志并继续后续的验证流程。与 requisite 相反</p>
+</li>
+<li>
+<p>optional</p>
+<p>该模块控件大多数是显示信息，并不是用在验证方面</p>
+</li>
+</ul>
+<p>图示如下：</p>
+<p><img src="@source/tutorial-basis/13/assets/image-20200225205700001.png" alt="image-20200225205700001"></p>
+</li>
+</ol>
+<h2 id="常用模块简介" tabindex="-1"><a class="header-anchor" href="#常用模块简介"><span>常用模块简介</span></a></h2>
+<p>由于常常需要通过各种方式来登录 login 系统，来看看登录所需要的 PAM 流程：</p>
+<div class="language-bash line-numbers-mode" data-highlighter="prismjs" data-ext="sh"><pre v-pre><code class="language-bash"><span class="line"><span class="token punctuation">[</span>mrcode@study ~<span class="token punctuation">]</span>$ <span class="token function">cat</span> /etc/pam.d/login </span>
+<span class="line"><span class="token comment">#%PAM-1.0</span></span>
+<span class="line">auth <span class="token punctuation">[</span>user_unknown<span class="token operator">=</span>ignore <span class="token assign-left variable">success</span><span class="token operator">=</span>ok <span class="token assign-left variable">ignore</span><span class="token operator">=</span>ignore <span class="token assign-left variable">default</span><span class="token operator">=</span>bad<span class="token punctuation">]</span> pam_securetty.so</span>
+<span class="line">auth       substack     system-auth</span>
+<span class="line">auth       include      postlogin</span>
+<span class="line">account    required     pam_nologin.so</span>
+<span class="line">account    include      system-auth</span>
+<span class="line">password   include      system-auth</span>
+<span class="line"><span class="token comment"># pam_selinux.so close should be the first session rule</span></span>
+<span class="line">session    required     pam_selinux.so close</span>
+<span class="line">session    required     pam_loginuid.so</span>
+<span class="line">session    optional     pam_console.so</span>
+<span class="line"><span class="token comment"># pam_selinux.so open should only be followed by sessions to be executed in the user context</span></span>
+<span class="line">session    required     pam_selinux.so <span class="token function">open</span></span>
+<span class="line">session    required     pam_namespace.so</span>
+<span class="line">session    optional     pam_keyinit.so force revoke</span>
+<span class="line">session    include      system-auth</span>
+<span class="line">session    include      postlogin</span>
+<span class="line"><span class="token parameter variable">-session</span>   optional     pam_ck_connector.so</span>
+<span class="line"></span>
+<span class="line"><span class="token comment"># 这里看到最多的应该是有引用了 system-auth，来观察下</span></span>
+<span class="line"><span class="token punctuation">[</span>mrcode@study ~<span class="token punctuation">]</span>$ <span class="token function">cat</span> /etc/pam.d/system-auth</span>
+<span class="line"><span class="token comment">#%PAM-1.0</span></span>
+<span class="line"><span class="token comment"># This file is auto-generated.</span></span>
+<span class="line"><span class="token comment"># User changes will be destroyed the next time authconfig is run.</span></span>
+<span class="line">auth        required      pam_env.so</span>
+<span class="line">auth        required      pam_faildelay.so <span class="token assign-left variable">delay</span><span class="token operator">=</span><span class="token number">2000000</span></span>
+<span class="line">auth        sufficient    pam_fprintd.so</span>
+<span class="line">auth        sufficient    pam_unix.so nullok try_first_pass</span>
+<span class="line">auth        requisite     pam_succeed_if.so uid <span class="token operator">>=</span> <span class="token number">1000</span> quiet_success</span>
+<span class="line">auth        required      pam_deny.so</span>
+<span class="line"></span>
+<span class="line">account     required      pam_unix.so</span>
+<span class="line">account     sufficient    pam_localuser.so</span>
+<span class="line">account     sufficient    pam_succeed_if.so uid <span class="token operator">&lt;</span> <span class="token number">1000</span> quiet</span>
+<span class="line">account     required      pam_permit.so</span>
+<span class="line"></span>
+<span class="line">password    requisite     pam_pwquality.so try_first_pass local_users_only <span class="token assign-left variable">retry</span><span class="token operator">=</span><span class="token number">3</span> <span class="token assign-left variable">authtok_type</span><span class="token operator">=</span></span>
+<span class="line">password    sufficient    pam_unix.so sha512 shadow nullok try_first_pass use_authtok</span>
+<span class="line">password    required      pam_deny.so</span>
+<span class="line"></span>
+<span class="line">session     optional      pam_keyinit.so revoke</span>
+<span class="line">session     required      pam_limits.so</span>
+<span class="line"><span class="token parameter variable">-session</span>     optional      pam_systemd.so</span>
+<span class="line">session     <span class="token punctuation">[</span>success<span class="token operator">=</span><span class="token number">1</span> <span class="token assign-left variable">default</span><span class="token operator">=</span>ignore<span class="token punctuation">]</span> pam_succeed_if.so <span class="token function">service</span> <span class="token keyword">in</span> crond quiet use_uid</span>
+<span class="line">session     required      pam_unix.so</span>
+<span class="line"></span>
+<span class="line"></span></code></pre>
+<div class="line-numbers" aria-hidden="true" style="counter-reset:line-number 0"><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div></div></div><p>system-auth 用到了非常多的 PAM 模块，每个模块的功能都不太相同，详细的模块数据可以在以下位置找到：</p>
+<ul>
+<li><code v-pre>/etc/pam.d/*</code>：每个程序个别的 PAM 配置文件</li>
+<li><code v-pre>/lib64/security/*</code>：PAM 模块文件的实际放置目录</li>
+<li><code v-pre>/etc/security/*</code>：其他 PAM 环境的配置文件</li>
+<li><code v-pre>/usr/share/doc/pam-*</code>：详细的 PAM 说明文件</li>
+</ul>
+<div class="language-bash line-numbers-mode" data-highlighter="prismjs" data-ext="sh"><pre v-pre><code class="language-bash"><span class="line"><span class="token punctuation">[</span>root@study ~<span class="token punctuation">]</span><span class="token comment"># find / -name *.pam_nologin</span></span>
+<span class="line">/usr/share/doc/pam-1.1.8/txts/README.pam_nologin</span>
+<span class="line">比如 pam_nologin.so 的说明文件，就在以上路径，可以阅读下</span>
+<span class="line"></span></code></pre>
+<div class="line-numbers" aria-hidden="true" style="counter-reset:line-number 0"><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div></div></div><p>下面介绍几个常用的模块，详细的信息需要自己去查阅资料</p>
+<ul>
+<li>
+<p>pam_securetty.so：限制系统管理员 root 只能怪从安全的 secure 终端机登录</p>
+<p>例如 tty1、tty2 就是传统的终端机装置名称。安全的终端机设置在 <code v-pre>/etc/securetty</code> 文件中，里面列出了终端机名称，查看下就知道为什么 root 可以从 tty1~tt2 登录，而不能通过 telnet 登录了</p>
+</li>
+<li>
+<p>pam_nologin.so：可以限制一般用户是否能够登录主机</p>
+<p>当 <code v-pre>/etc/nologin</code> 文件存在时，则所有一般使用者均无法再登录系统了，并在他们的终端机上会将该文件内容显示出来；</p>
+<p>正常情况下，该文件是不能存在系统中的，该模块对 root 以及已经登录系统中的一般账户没有影响。注意：该文件与 <code v-pre>/etc/nologin.txt</code> 不是同一个</p>
+</li>
+<li>
+<p>pam_selinux.so：SELinux 是个针对程序来进行细部管理权限的功能</p>
+<p>在后续的第 16 章中再来讨论 SELinux。由于 SELinux 会影响到用户执行程序的权限，因此利用 PAM 模块，将 SELinux 暂时关闭，等到验证通过后，在启动</p>
+</li>
+<li>
+<p>pam_console.so：</p>
+<p>当系统出现某些问题，或则是需要使用特殊的终端接口（如 RS232 之类的终端机联机设备）登录主机时，该模块可以帮助处理一些文件权限问题，让使用者可以通过特殊终端接口 console 顺利登录系统</p>
+</li>
+<li>
+<p>pam_loginuid.so：</p>
+<p>系统账户与一般账户的 UID 不同的，一般账户 UID 均大于 1000 才合理。可以用该模块来验证使用者的 UID 是否符合要求</p>
+</li>
+<li>
+<p>pam_unix.so：</p>
+<p>很复杂的且重要的模块，可以用在验证阶段的认证功能，可以用在授权阶段的账户许可证管理，可以用在会议（session）阶段的登录文件记录，甚至可以用在密码更新阶段的校验。该模块在早期用的较多</p>
+</li>
+<li>
+<p>pam_pwquality.so：</p>
+<p>可以用来校验密码强度，包括是否在字典中、密码输入几次都失败就断掉此次联机等功能。</p>
+<p>最早使用的是 pam_cracklib.so 模块，后来改成 pam_pwquality.so 模块，pam_pwquality.so 兼容 pam_cracklib.so 模块，同时提供了 <code v-pre>/etc/security/pwquality.conf</code> 文件可以额外指定默认值，比较容易处理修改</p>
+</li>
+<li>
+<p>pam_limits.so</p>
+<p>在第 10 章中讲解的 ulimit，就是该模块提供的能力，更多信息可以查看 <code v-pre>/etc/security/limits.conf</code></p>
+</li>
+</ul>
+<p>了解了模块大致功能后，这里讨论下 login 的 PAM 验证机制流程：</p>
+<ol>
+<li>验证阶段 auth：
+<ol>
+<li>经过 pam_securetty.so ，如果使用者是 root 时，会参考 /etc/securetty 的设置</li>
+<li>经过 pam_env.so 设置额外的环境变量</li>
+<li>经过 pam_unix.so 校验密码，若通过则回报 login 程序</li>
+<li>若未通过，则继续往下以 pam_succeed_if.so 判断 UID 是大于 1000，若小于 1000 则回报失败</li>
+<li>若大于 1000 则以 pam_deny.so 拒绝联机</li>
+</ol>
+</li>
+<li>授权阶段 account：
+<ol>
+<li>以 pam_nologin.so 判断 /etc/nologin 是否存在，若存在则不允许一般使用者登录</li>
+<li>接下来以 pam_unix.so 及 pam_localuser.so 进行账户管理</li>
+<li>再以 pam_succeed_if.so 判断 UID 是否小于 1000，若小于 1000 则不记录登录信息</li>
+<li>最后已 pam_permit.so 允许该账户登录</li>
+</ol>
+</li>
+<li>密码阶段 password：
+<ol>
+<li>以 pam_pwauality.so 设置密码仅能尝试错误 3 次</li>
+<li>接下来以 pam_unix.so 通过 sha512 shadow 等功能进行密码校验，若通过则回报 login 程序</li>
+<li>若不通过则以 pam_deny.so 聚焦登录</li>
+</ol>
+</li>
+<li>会议阶段 session：
+<ol>
+<li>以 pam_selinux.so 暂时关闭 SELinux</li>
+<li>使用 pam_limits.so 设置好用户能够操作的系统资源</li>
+<li>登录成功后开始记录相关信息在登录文件中</li>
+<li>以 pam_loginuid.so 规范不同的 UID 权限</li>
+<li>开启 pam_selinux.so 功能</li>
+</ol>
+</li>
+</ol>
+<p>这小节感觉太难了，笔者没有看懂也联想不到，只知道 /etc/nologin 文件存在的话，一般使用者都不能登录，远程联机有可能无法使用 root 登录，这些都是 PAM 模块提供的功能</p>
+<h2 id="其他相关文件" tabindex="-1"><a class="header-anchor" href="#其他相关文件"><span>其他相关文件</span></a></h2>
+<p>前面讲到：</p>
+<ul>
+<li><code v-pre>/etc/securetty</code> 会影响到 root 可登录的安全终端机</li>
+<li><code v-pre>/etc/nologin</code> 会影响到一般使用者是否能够登录</li>
+<li><code v-pre>/etc/pam.d</code> 是 PAM 相关配置文件所在目录</li>
+<li><code v-pre>/usr/share/doc/pam-(版本)</code> 是 PAM 说明文件所在目录</li>
+<li><code v-pre>/lib64/security</code> 是 PAM 模块程序文件所在目录</li>
+</ul>
+<p>主要的 PAM 文件都在 <code v-pre>/etc/security</code> 目录中，下面介绍几个可能会用到的配置文件</p>
+<h3 id="limits-conf" tabindex="-1"><a class="header-anchor" href="#limits-conf"><span>limits.conf</span></a></h3>
+<p><RouteLink to="/tutorial-basis/13/10/02.html#%E4%B8%8E%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E5%8F%8A%E7%A8%8B%E5%BA%8F%E7%9A%84%E9%99%90%E5%88%B6%E5%85%B3%E7%B3%BB%EF%BC%9Aulimit"> 第 10 章讲到的 ulimit 功能 </RouteLink>，除了修改使用者的 <code v-pre>~/.bashrc</code> 配置文件外，系统管理员可以通过 PAM 来管理，就是 <code v-pre>/etc/security/limits.conf</code> 这个文件。这里做个简单介绍</p>
+<div class="language-bash line-numbers-mode" data-highlighter="prismjs" data-ext="sh"><pre v-pre><code class="language-bash"><span class="line"><span class="token comment"># 范例 1：mrcode1 这个用户只能建立 100MB 的文件，且大于 90MB 会警告</span></span>
+<span class="line"></span>
+<span class="line"><span class="token punctuation">[</span>root@study ~<span class="token punctuation">]</span><span class="token comment"># vim /etc/security/limits.conf </span></span>
+<span class="line"><span class="token comment">#&lt;domain>      &lt;type>  &lt;item>         &lt;value></span></span>
+<span class="line"><span class="token comment">#</span></span>
+<span class="line">mrcode1 soft    fsize   <span class="token number">90000</span></span>
+<span class="line">mrcode1 hard    fsize   <span class="token number">100000</span></span>
+<span class="line"><span class="token comment"># 账户	限制类型	限制项目	限制值</span></span>
+<span class="line"><span class="token number">1</span> 字段：账户或群组，若为群组则前面需要加上 @，例如 @projecta</span>
+<span class="line"><span class="token number">2</span> 字段：类型，是严格 hard，还是仅警告 soft</span>
+<span class="line"><span class="token number">3</span> 字段：此例中是文件容量</span>
+<span class="line"><span class="token number">4</span> 字段：为限制值，在此列中单位为 KB</span>
+<span class="line"></span>
+<span class="line"><span class="token comment"># 使用 mrcode1 登录后执行以下操作</span></span>
+<span class="line"><span class="token punctuation">[</span>mrcode1@study ~<span class="token punctuation">]</span>$ <span class="token builtin class-name">ulimit</span> <span class="token parameter variable">-a</span></span>
+<span class="line">core <span class="token function">file</span> size          <span class="token punctuation">(</span>blocks, -c<span class="token punctuation">)</span> <span class="token number">0</span></span>
+<span class="line">data seg size           <span class="token punctuation">(</span>kbytes, -d<span class="token punctuation">)</span> unlimited</span>
+<span class="line">scheduling priority             <span class="token punctuation">(</span>-e<span class="token punctuation">)</span> <span class="token number">0</span></span>
+<span class="line"><span class="token function">file</span> size               <span class="token punctuation">(</span>blocks, -f<span class="token punctuation">)</span> <span class="token number">90000</span>		<span class="token comment"># 查看到这里限制变成了 90000</span></span>
+<span class="line"></span>
+<span class="line"><span class="token comment">#尝试创建大于 90MB 的文件</span></span>
+<span class="line"><span class="token punctuation">[</span>mrcode1@study ~<span class="token punctuation">]</span>$ <span class="token function">dd</span> <span class="token assign-left variable">if</span><span class="token operator">=</span>/dev/zero <span class="token assign-left variable">of</span><span class="token operator">=</span>test <span class="token assign-left variable">bs</span><span class="token operator">=</span>1M <span class="token assign-left variable">count</span><span class="token operator">=</span><span class="token number">110</span></span>
+<span class="line">File size limit exceeded <span class="token punctuation">(</span>core dumped<span class="token punctuation">)</span></span>
+<span class="line"><span class="token punctuation">[</span>mrcode1@study ~<span class="token punctuation">]</span>$ ll --block-size<span class="token operator">=</span>K <span class="token builtin class-name">test</span></span>
+<span class="line">-rw-rw-r--. <span class="token number">1</span> mrcode1 mrcode1 90000K Feb <span class="token number">25</span> <span class="token number">22</span>:07 <span class="token builtin class-name">test</span></span>
+<span class="line"><span class="token comment"># 发现该文件最多只有 90MB</span></span>
+<span class="line"></span>
+<span class="line"></span></code></pre>
+<div class="line-numbers" aria-hidden="true" style="counter-reset:line-number 0"><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div></div></div><div class="language-bash line-numbers-mode" data-highlighter="prismjs" data-ext="sh"><pre v-pre><code class="language-bash"><span class="line"><span class="token comment"># 范例 2： 限制 pro1 这个群组，每次仅能有一个用户登录系统 maxlogins</span></span>
+<span class="line"><span class="token punctuation">[</span>root@study ~<span class="token punctuation">]</span><span class="token comment"># vim /etc/security/limits.conf</span></span>
+<span class="line">@pro1   hard    maxlogins <span class="token number">1</span></span>
+<span class="line"></span>
+<span class="line"><span class="token comment"># 群组功能限制，似乎只对初始群组才有效果限制</span></span>
+<span class="line"><span class="token comment"># 如果尝试多个 pro1 的登录时，第二个以后就无法登录了</span></span>
+<span class="line"><span class="token comment"># 并且会在 /var/secure 文件中还会出现如下的信息</span></span>
+<span class="line">pam_limits<span class="token punctuation">(</span>login:session<span class="token punctuation">)</span>: Too many logins <span class="token punctuation">(</span>max <span class="token number">1</span><span class="token punctuation">)</span> <span class="token keyword">for</span> pro1</span>
+<span class="line"></span></code></pre>
+<div class="line-numbers" aria-hidden="true" style="counter-reset:line-number 0"><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div><div class="line-number"></div></div></div><p>该文件设置完就生效了。由于 PAM 是在程序调用时才设置，对于已经登录过的系统是没有效果的。再次登录时才会生效</p>
+<h3 id="var-log-secure、-var-log-messages" tabindex="-1"><a class="header-anchor" href="#var-log-secure、-var-log-messages"><span><code v-pre>/var/log/secure、/var/log/messages</code></span></a></h3>
+<p>如果发生任何无法登录或则是产生一些你无法预期的错误时，由于 PAM 模块都会将数据记载到 <code v-pre>/etc/log/secure</code> 中，所以发生了问题，务必到该文件查看下日志信息。</p>
+<p>举例来说：在 <code v-pre>limits.conf</code> 介绍的范例 2 中，多重登录错误可以到 <code v-pre>/var/log/secure</code> 内查询</p>
+</div></template>
+
+

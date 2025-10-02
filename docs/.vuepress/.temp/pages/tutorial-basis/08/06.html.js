@@ -1,0 +1,16 @@
+import comp from "E:/linux命令学习/linux-tutorial/docs/.vuepress/.temp/pages/tutorial-basis/08/06.html.vue"
+const data = JSON.parse("{\"path\":\"/tutorial-basis/08/06.html\",\"title\":\"其他常见的压缩与备份工具\",\"lang\":\"zh-CN\",\"frontmatter\":{},\"git\":{\"updatedTime\":1572755196000,\"contributors\":[{\"name\":\"zq99299\",\"username\":\"zq99299\",\"email\":\"99299684@qq.com\",\"commits\":2,\"url\":\"https://github.com/zq99299\"}],\"changelog\":[{\"hash\":\"5ea98b2eff3afccc3e0d52e1061b88c9f8c40824\",\"time\":1572755196000,\"email\":\"99299684@qq.com\",\"author\":\"zq99299\",\"message\":\"常见的压缩与备份工具\"},{\"hash\":\"49aca23d98aaadb74e983b23ca61a9f1fc4d8d53\",\"time\":1572189273000,\"email\":\"99299684@qq.com\",\"author\":\"zq99299\",\"message\":\"文件与文件系统的压缩、打包与备份\"}]},\"filePathRelative\":\"tutorial-basis/08/06.md\"}")
+export { comp, data }
+
+if (import.meta.webpackHot) {
+  import.meta.webpackHot.accept()
+  if (__VUE_HMR_RUNTIME__.updatePageData) {
+    __VUE_HMR_RUNTIME__.updatePageData(data)
+  }
+}
+
+if (import.meta.hot) {
+  import.meta.hot.accept(({ data }) => {
+    __VUE_HMR_RUNTIME__.updatePageData(data)
+  })
+}
